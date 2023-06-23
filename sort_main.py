@@ -15,6 +15,8 @@ import xlrd
 from openpyxl.utils import column_index_from_string as col_index
 import win32com.client as win32
 
+from multiprocessing import Process, current_process
+
 
 class SortSheetTool(ttk.Frame):
 
@@ -109,20 +111,23 @@ class SortSheetTool(ttk.Frame):
 
     def do_work(self):
         """主要工作，先读取，再排序，再保存"""
-        # self.trans_xlsx()
-        self.read_excel()
-        self.sort_sheets()
-        self.save_xlsx()
+        self.trans_xlsx()
+        # self.read_excel()
+        # self.sort_sheets()
+        # self.save_xlsx()
 
     def trans_xlsx(self):
         """将Excel转换成xlsx"""
         # 这个转换还要再研究下，有问题
-        file_name = self.path_var.get()
+        file = self.path_var.get()
+        file_name = pathlib.Path(file).name
+        save_path = pathlib.Path(file).parent
         # 创建 Excel Application 对象
         excel = win32.gencache.EnsureDispatch('Excel.Application')
         try:
-            wb = excel.Workbooks.Open(file_name)
-            wb.SaveAs(f'{file_name}x', FileFormat=51)
+            wb = excel.Workbooks.Open(file)
+            new_name = file_name + "x"
+            wb.SaveAs(f"output/{new_name}", FileFormat=51)
             print('转换成功！')
             wb.Close()
         except Exception as e:
@@ -130,6 +135,7 @@ class SortSheetTool(ttk.Frame):
         finally:
             # 退出 Excel
             excel.Application.Quit()
+
 
     def read_excel(self):
         """读取excel文件，用xlrd，读取效率高，"""
