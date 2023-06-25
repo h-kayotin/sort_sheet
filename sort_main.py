@@ -5,6 +5,7 @@ Author: hanayo
 Date： 2023/6/20
 """
 from copy import copy
+import queue
 from threading import Thread
 import openpyxl
 import ttkbootstrap as ttk
@@ -14,11 +15,12 @@ from tkinter.filedialog import askopenfilename
 import xlrd
 from openpyxl.utils import column_index_from_string as col_index
 import win32com.client as win32
-
-from multiprocessing import Process, current_process
+import time
 
 
 class SortSheetTool(ttk.Frame):
+
+    queue = queue.Queue()
 
     def __init__(self, master: ttk.Window, canvas=None):
         super().__init__(master, padding=15)
@@ -45,8 +47,12 @@ class SortSheetTool(ttk.Frame):
         # 创建开始按钮那一行
         self.create_btn_row()
         # 创建保存结果那一行
+        def_message = "excel排序工具ver1.0，请选择文件后点击开始排序，\n目前仅支持xls文件。"
         self.output_text = ttk.StringVar()
+        self.output_text.set(def_message)
         self.create_output()  # 创建结果那一行
+
+        self.start_time = time.time()
 
     def create_file_select(self):
         """选择文件那一行"""
@@ -104,22 +110,35 @@ class SortSheetTool(ttk.Frame):
         st_button.pack(side=LEFT, padx=5)
 
     def start_work(self):
-        Thread(
-            target=self.do_work,
-            daemon=True
-        ).start()
+        """先生成xlsx文件，再建一个线程运行do_work"""
+        self.start_time = time.time()
+        self.log = "正在转换xlsx文件-->"
+        self.output_text.set(self.log)
+        self.update_idletasks()
+
+        file = self.path_var.get()
+        th1 = Thread(target=self.trans_xlsx, args=(file,))
+        th1.start()
+        th1.join()
+        trans_log, is_ok = self.queue.get()
+
+        self.log += trans_log
+        cost_time = f"，已用时：{time.time() - self.start_time:.2f}秒。\n"
+        self.log += cost_time
+        self.output_text.set(self.log)
+        self.update_idletasks()
+        if is_ok:
+            Thread(target=self.do_work, daemon=True).start()
 
     def do_work(self):
         """主要工作，先读取，再排序，再保存"""
-        self.trans_xlsx()
-        # self.read_excel()
-        # self.sort_sheets()
-        # self.save_xlsx()
+        self.read_excel()
+        self.sort_sheets()
+        self.save_xlsx()
 
-    def trans_xlsx(self):
+    @staticmethod
+    def trans_xlsx(file):
         """将Excel转换成xlsx"""
-        # 这个转换还要再研究下，有问题
-        file = self.path_var.get()
         file_name = pathlib.Path(file).name
         save_path = pathlib.Path(file).parent
         # 创建 Excel Application 对象
@@ -127,19 +146,22 @@ class SortSheetTool(ttk.Frame):
         try:
             wb = excel.Workbooks.Open(file)
             new_name = file_name + "x"
-            wb.SaveAs(f"output/{new_name}", FileFormat=51)
-            print('转换成功！')
-            wb.Close()
+            wb.SaveAs(f"{save_path}/{new_name}", FileFormat=51)
+            wb.Close(SaveChanges=1)
+            txt_log = "转换成功"
+            SortSheetTool.queue.put((txt_log, True))
+            return txt_log, True
         except Exception as e:
-            print(f'转换失败！原因：{e}')
+            txt_log = f'转换失败！原因：{e}'
+            SortSheetTool.queue.put((txt_log, False))
+            return txt_log, False
         finally:
             # 退出 Excel
             excel.Application.Quit()
 
-
     def read_excel(self):
         """读取excel文件，用xlrd，读取效率高，"""
-        self.log = "开始读取excel\n"
+        self.log += "\n开始读取excel-->"
         self.output_text.set(self.log)
         workbook = xlrd.open_workbook(self.path_var.get())
         sheet_names = workbook.sheet_names()
@@ -158,16 +180,17 @@ class SortSheetTool(ttk.Frame):
         # 关闭 Excel 文件
         workbook.release_resources()
         del workbook
-        self.log += f"读取完毕，共读取{len(self.sheet_list)}个sheet.\n"
+        self.log += f"读取完毕，共读取{len(self.sheet_list)}个sheet。\n"
         self.output_text.set(self.log)
 
     def sort_sheets(self):
         """对sheet进行排序"""
-        self.log += "开始进行排序-->\n"
+        self.log += "开始进行排序-->"
         self.output_text.set(self.log)
         sorted_list = sorted(self.sheet_list, key=lambda x: x["sheet_index"])
+        cost_time = f"，已用时：{time.time() - self.start_time:.2f}秒。\n"
         self.sheet_list = sorted_list
-        self.log += "排序已完成，即将开始复制-->"
+        self.log += f"排序已完成{cost_time}\n即将开始复制-->"
         self.output_text.set(self.log)
 
     def save_xlsx(self):
@@ -178,11 +201,15 @@ class SortSheetTool(ttk.Frame):
             sheet_names.append(self.sheet_list[i]["sheet_name"])
         new_wb = openpyxl.Workbook()
         count = 1
-        self.output_text.set(f"正在复制--->")
+        self.log += "正在复制:\n"
+        self.output_text.set(self.log)
+        log_temp = self.log
         for sheet_name in sheet_names:
             self.update_idletasks()
             if count % 10 == 0:
-                self.output_text.set(f"正在复制第{count}个sheet")
+                cost_time = f"，已用时：{time.time() - self.start_time:.2f}秒。\n"
+                count_text = log_temp + f"正在复制第{count}个sheet-->{cost_time}"
+                self.output_text.set(count_text)
             source_worksheet = workbook[sheet_name]
             new_worksheet = new_wb.create_sheet(sheet_name)
 
@@ -211,14 +238,17 @@ class SortSheetTool(ttk.Frame):
             for i in range(1, source_worksheet.max_row + 1):
                 new_worksheet.row_dimensions[i].height = source_worksheet.row_dimensions[i].height
             count += 1
-        self.output_text.set("复制完毕，正在保存-->")
+        self.log += f"已复制{count}个sheet，正在保存-->"
+        self.output_text.set(self.log)
         # 删除默认第一个空的sheet
         blank_sheet = new_wb.worksheets[0]
         new_wb.remove(blank_sheet)
         save_path = pathlib.Path(self.path_var.get()).parent
         save_name = pathlib.Path(self.path_var.get()).name
         new_wb.save(f"{save_path}/已排序_{save_name}x")
-        self.output_text.set(f"已完成，保存在原路径，文件名是:已排序_{save_name}x")
+        final_time = f"，总用时：{time.time() - self.start_time:.2f}秒。"
+        self.log += f"已完成。\n\n保存在{save_path}，\n文件名是:已排序_{save_name}x{final_time}"
+        self.output_text.set(self.log)
 
     def create_output(self):
         output_lb0 = ttk.Label(self.output, text="", width=10)
