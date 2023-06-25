@@ -166,7 +166,7 @@ class SortSheetTool(ttk.Frame):
         workbook = xlrd.open_workbook(self.path_var.get())
         sheet_names = workbook.sheet_names()
         for sheet_name in sheet_names:
-            if len(sheet_name) > 6:
+            if sheet_name == "XDO_METADATA":
                 pass
             else:
                 sheet_obj = {
