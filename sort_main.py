@@ -246,9 +246,10 @@ class SortSheetTool(ttk.Frame):
         save_path = pathlib.Path(self.path_var.get()).parent
         save_name = pathlib.Path(self.path_var.get()).name
         new_wb.save(f"{save_path}/已排序_{save_name}x")
-        final_time = f"，总用时：{time.time() - self.start_time:.2f}秒。"
+        final_time = f"\n总用时：{time.time() - self.start_time:.2f}秒。"
         self.log += f"已完成。\n\n保存在{save_path}，\n文件名是：已排序_{save_name}x{final_time}"
         self.output_text.set(self.log)
+        self.sheet_list = []
 
     def create_output(self):
         output_lb0 = ttk.Label(self.output, text="", width=10)
