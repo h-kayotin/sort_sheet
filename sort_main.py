@@ -27,7 +27,7 @@ class SortSheetTool(ttk.Frame):
         self.pack(fill=BOTH, expand=YES)
         if canvas:
             canvas.destroy()
-        master.title("Excel按Sheet排序")
+        master.title("Excel给Sheet排序")
         self.sheet_list = []
         self.log = ""
 
@@ -163,25 +163,28 @@ class SortSheetTool(ttk.Frame):
         """读取excel文件，用xlrd，读取效率高，"""
         self.log += "\n开始读取excel-->"
         self.output_text.set(self.log)
-        workbook = xlrd.open_workbook(self.path_var.get())
-        sheet_names = workbook.sheet_names()
-        for sheet_name in sheet_names:
-            if sheet_name == "XDO_METADATA":
-                pass
-            else:
-                sheet_obj = {
-                    "sheet_name": "",
-                    "sheet_index": 0
-                }
-                sheet = workbook.sheet_by_name(sheet_name)
-                sheet_obj["sheet_name"] = sheet_name
-                sheet_obj["sheet_index"] = int(sheet.cell(5, col_index("Q") - 1).value)
-                self.sheet_list.append(sheet_obj)
-        # 关闭 Excel 文件
-        workbook.release_resources()
-        del workbook
-        self.log += f"读取完毕，共读取{len(self.sheet_list)}个sheet。\n"
-        self.output_text.set(self.log)
+        try:
+            workbook = xlrd.open_workbook(self.path_var.get())
+            sheet_names = workbook.sheet_names()
+            for sheet_name in sheet_names:
+                if sheet_name == "XDO_METADATA":
+                    pass
+                else:
+                    sheet_obj = {
+                        "sheet_name": "",
+                        "sheet_index": 0
+                    }
+                    sheet = workbook.sheet_by_name(sheet_name)
+                    sheet_obj["sheet_name"] = sheet_name
+                    sheet_obj["sheet_index"] = int(sheet.cell(5, col_index("Q") - 1).value)
+                    self.sheet_list.append(sheet_obj)
+            workbook.release_resources()
+            # 关闭 Excel 文件
+            self.log += f"读取完毕，共读取{len(self.sheet_list)}个sheet。\n"
+            self.output_text.set(self.log)
+            self.update_idletasks()
+        except Exception as e:
+            self.log += f"读取失败，错误原因如下：\n{e}"
 
     def sort_sheets(self):
         """对sheet进行排序"""
