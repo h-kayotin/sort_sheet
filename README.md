@@ -17,11 +17,11 @@
 
 界面化用ttk库实现
 
-###如何使用 how to use
+### 如何使用 how to use
 
 直接运行sort_main.py 即可，所需库见requirements.txt
 
-###适用场景
+### 适用场景
 
 单个xls文件中有多个sheet，每个sheet的大体格式是一样的，根据某个指定单元格作为依据对所有sheet进行排序。
 
